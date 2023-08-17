@@ -176,7 +176,7 @@ class LoRA_Net(nn.Module):
         #self.dnn.load_state_dict(torch.load(self.path))
         return self.net_u(x,y)
 
-data = scipy.io.loadmat("/kaggle/input/burgers-pino/burgers_pino.mat")
+data = scipy.io.loadmat("datasets/burgers_pino.mat")
 x_data = data['input']
 y_data = data['output'].transpose(0,2,1)
 
