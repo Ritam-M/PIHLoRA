@@ -66,7 +66,8 @@ class Base_Net(nn.Module):
         
         self.loss = 1e10
         self.path = "model1.pt"
-        
+
+        self.count  = 0
         self.iter = 0
     
     def net_u(self, x, y):  
@@ -104,7 +105,10 @@ class Base_Net(nn.Module):
         if loss<self.loss:
             self.loss = loss
             torch.save(self.dnn.state_dict(), self.path)
-    
+            self.count = 0
+        else:
+            self.count += 1
+            
         loss.backward()
         
         if self.iter%100==0:
@@ -121,6 +125,10 @@ class Base_Net(nn.Module):
             self.optimizer1.step(self.loss_func)
             self.scheduler.step()
             self.iter+=1
+
+            if self.count == 1000:
+                break
+                
         self.optimizer2.step(self.loss_func)
             
     def predict(self, x, y):   
