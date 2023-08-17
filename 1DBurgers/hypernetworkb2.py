@@ -1,3 +1,24 @@
+import pickle
+import scipy.io
+import sys
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
+import numpy as np
+import time
+import matplotlib.pyplot as plt
+from collections import OrderedDict
+# set random seed
+np.random.seed(1234)
+torch.manual_seed(1234)
+
+# CUDA support 
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
+
 class Hyper_Model(nn.Module):
     def __init__(self,outputs=643):
         super(Hyper_Model, self).__init__()
@@ -123,10 +144,9 @@ class HyperNetwork(nn.Module):
             self.param = torch.tensor(param[:128],requires_grad=True).view(1,128).float().to(device)
             
             u, weights = self.net_u(self.param,self.X_bc1_x, self.X_bc1_t)
-            
-            loss_u_bc1 = torch.mean((u - self.U_bc1)**2)
-            loss_train_bc += (loss_u_bc1)/len(self.train_U_bc)
-            train_loss += (loss_u_bc1)/len(self.train_U_bc)
+
+            loss = torch.mean((weights-self.train_weights[i].float().to(device))**2)/len(self.train_Res)
+            train_loss += (loss)/len(self.train_U_bc)
 
         self.hypernetwork.eval()
         for i,param in enumerate(self.val_U_bc):
@@ -141,9 +161,8 @@ class HyperNetwork(nn.Module):
             self.param = torch.tensor(param[:128],requires_grad=True).view(1,128).float().to(device)
             
             u, weights = self.net_u(self.param,self.X_bc1_x, self.X_bc1_t)
+            loss = torch.mean((weights-self.val_weights[i].float().to(device))**2)/len(self.val_Res)
             
-            loss_u_bc1 = torch.mean((u - self.U_bc1)**2)
-            loss_train_bc += (loss_u_bc1)/len(self.val_U_bc)
             val_loss += (loss_u_bc1)/len(self.val_U_bc)
           
         train_loss.backward()
@@ -154,7 +173,6 @@ class HyperNetwork(nn.Module):
         if self.iter%100==0:
             print("Iter:{},Train_Loss_total:{}".format(self.iter, train_loss))
             print("Iter:{},Train_Loss_total:{}".format(self.iter, val_loss))
-            print("Iter:{},Train_Loss_bc:{}".format(self.iter, loss_train_bc))
             print("-------------------------------------------")
 
         if val_loss<self.loss:
