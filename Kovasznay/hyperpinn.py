@@ -18,27 +18,6 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
-class Base_Net(nn.Module):
-    def __init__(self):
-        super(Base_Net, self).__init__()
-        self.fc1 = nn.Linear(2, 64)  # Input layer
-        self.fc2 = nn.Linear(64, 64)  
-        self.fc3 = nn.Linear(64, 64) 
-        self.fc4 = nn.Linear(64, 64)  
-        self.fc5 = nn.Linear(64, 64) 
-        self.fc6 = nn.Linear(64, 3)
-        
-    def forward(self, x):
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
-        x = torch.tanh(self.fc3(x))
-        x = torch.tanh(self.fc4(x))
-        x = torch.tanh(self.fc5(x))
-        x = self.fc6(x)
-        
-        u, v, w = x[:,0:1], x[:,1:2], x[:,2:3]
-        return u,v,w
-
 class Hyper_Model(nn.Module):
     def __init__(self,outputs=17027):
         super(Hyper_Model, self).__init__()
@@ -56,60 +35,6 @@ class Hyper_Model(nn.Module):
     def forward(self,param):        
         weights = self.layers(param)
         return weights    
-
-"""class Hyper_Model(nn.Module):
-    def __init__(self, input_dim=1, output_dim=645, nhead=8, num_encoder_layers=6, d_model=256, dim_feedforward=256, dropout=0.1):
-        super(Hyper_Model, self).__init__()
-
-        self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout),
-            num_encoder_layers
-        )
-        self.fc = nn.Linear(d_model, output_dim)
-
-    def forward(self, x):
-        x = self.transformer(x)
-        x = self.fc(x)
-        return x"""
-
-class LoRA_Net(nn.Module):
-    def __init__(self, base_model, m):
-        super(LoRA_Net, self).__init__()
-        
-        self.base_model = base_model
-        
-        for param in self.base_model.parameters():
-            param.requires_grad = False
-            
-        self.fc1_A = nn.Linear(2, m, bias=False)
-        self.fc1_B = nn.Linear(m, 64, bias=False)
-        
-        self.fc2_A = nn.Linear(64, m, bias=False)
-        self.fc2_B = nn.Linear(m, 64, bias=False)
-
-        self.fc3_A = nn.Linear(64, m, bias=False)
-        self.fc3_B = nn.Linear(m, 64, bias=False)
-
-        self.fc4_A = nn.Linear(64, m, bias=False)
-        self.fc4_B = nn.Linear(m, 64, bias=False)
-
-        self.fc5_A = nn.Linear(64, m, bias=False)
-        self.fc5_B = nn.Linear(m, 64, bias=False)
-        
-        self.fc6_A = nn.Linear(64, m, bias=False)
-        self.fc6_B = nn.Linear(m, 3, bias=False)       
-
-    def forward(self, x):
-        
-        x = torch.tanh(self.base_model.fc1(x) + self.fc1_B(self.fc1_A(x)))
-        x = torch.tanh(self.base_model.fc2(x) + self.fc2_B(self.fc2_A(x)))
-        x = torch.tanh(self.base_model.fc3(x) + self.fc3_B(self.fc3_A(x)))
-        x = torch.tanh(self.base_model.fc4(x) + self.fc4_B(self.fc4_A(x)))
-        x = torch.tanh(self.base_model.fc5(x) + self.fc5_B(self.fc5_A(x)))
-        x = self.base_model.fc6(x) + self.fc6_B(self.fc6_A(x)) # This layer is not changed
-
-        u, v, w = x[:,0:1], x[:,1:2], x[:,2:3]
-        return u, v, w
 
 class Main_Model_DNN(nn.Module):
     def __init__(self):
@@ -190,7 +115,7 @@ class HyperNetwork(nn.Module):
         self.hypernetwork = Hyper_Model().to(device)  ## Input the number of parameters of PINN
         
         self.base_net = Base_Net().to(device)
-        self.base_net.load_state_dict(torch.load("/kaggle/input/base-kovasznay-models/model_12.pt"))
+        self.base_net.load_state_dict(torch.load("model_12.pt"))   ## Insert your base net path
         self.base_weights = torch.cat([param.view(-1) for param in self.base_net.parameters()])
         self.base_weights = self.base_weights.reshape(1,-1)
         
@@ -198,8 +123,8 @@ class HyperNetwork(nn.Module):
         
         self.mainnetwork = Main_Model_DNN().to(device)
         
-        self.optimizer = torch.optim.Adam(self.hypernetwork.parameters(), lr=1e-4)
-        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer,milestones=[],gamma=0.1)
+        self.optimizer = torch.optim.Adam(self.hypernetwork.parameters(), lr=1e-3)
+        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer,milestones=[5000,10000],gamma=0.1)
             
         self.loss = 1e10
         self.losses = []
@@ -293,6 +218,49 @@ class HyperNetwork(nn.Module):
             
             a = 20-i%20
             train_loss += a*(loss_u_bc1 + loss_v_bc1 + loss_p_bc1 + loss_fu + loss_fv + loss_fe)/len(self.train_Res)
+
+        self.hypernetwork.eval()
+        for i,re in enumerate(self.val_Res):
+            
+            m = re/100
+            
+            self.X_bc1_x = torch.tensor(self.train_X_bc[i][:, 0:1], requires_grad=True).float().to(device)
+            self.X_bc1_y = torch.tensor(self.train_X_bc[i][:, 1:2], requires_grad=True).float().to(device)
+                 
+            self.U_bc1 =  torch.tensor(self.train_U_bc[i][:, 0:1], requires_grad=True).float().to(device)
+            self.V_bc1 =  torch.tensor(self.train_V_bc[i][:, 0:1], requires_grad=True).float().to(device)
+            self.P_bc1 =  torch.tensor(self.train_P_bc[i][:, 0:1], requires_grad=True).float().to(device)
+            
+            self.param = torch.tensor([m],requires_grad=True).view(1,1).float().to(device)
+            
+            u, v, p, weights = self.net_u(self.param,self.X_bc1_x, self.X_bc1_y)
+            #loss = torch.mean((weights-self.val_weights[i].float().to(device))**2)/len(self.val_Res)
+            
+            #loss = myloss(weights,self.val_weights[i].float().to(device))
+            
+            loss_u_bc1 = torch.mean((u - self.U_bc1)**2)
+            loss_v_bc1 = torch.mean((v - self.V_bc1)**2)
+            loss_p_bc1 = torch.mean((p - self.P_bc1)**2)
+            
+            loss_fu = 0.0 
+            loss_fv = 0.0 
+            loss_fe = 0.0 
+            
+            for k in range(11):
+                
+                self.fx = self.X_f_x[k*100:(k+1)*100,:].to(device)
+                self.fy = self.X_f_y[k*100:(k+1)*100,:].to(device)
+                _,_,_,fu,fv,fe = self.net_f(self.param,self.fx, self.fy)
+                loss_fu += torch.mean(fu**2)
+                loss_fv += torch.mean(fv**2)
+                loss_fe += torch.mean(fe**2)
+
+            loss_val += (loss_u_bc1 + loss_v_bc1 + loss_p_bc1 + loss_fu + loss_fv + loss_fe)/len(self.val_Res)
+            loss_val_bc += (loss_u_bc1 + loss_v_bc1 + loss_p_bc1)/len(self.val_Res)
+            loss_val_f += (loss_fu + loss_fv + loss_fe)/len(self.val_Res)
+            
+            a = 20-i%20
+            val_loss += a*(loss_u_bc1 + loss_v_bc1 + loss_p_bc1 + loss_fu + loss_fv + loss_fe)/len(self.val_Res)
         
         train_loss.backward()
         self.optimizer.step()
@@ -305,16 +273,21 @@ class HyperNetwork(nn.Module):
             print("Iter:{},Train_Loss:{}".format(self.iter, loss_train))
             print("Iter:{},Train_Loss_bc:{}".format(self.iter, loss_train_bc))
             print("Iter:{},Train_Loss_f:{}".format(self.iter, loss_train_f))
+            print("Iter:{},Valid_Loss_total:{}".format(self.iter, val_loss))
+            #print("Iter:{},Valid_Weight_Loss:{}".format(self.iter, loss))
+            print("Iter:{},Valid_Loss:{}".format(self.iter, loss_val))
+            print("Iter:{},Valid_Loss_bc:{}".format(self.iter, loss_val_bc))
+            print("Iter:{},Valid_Loss_f:{}".format(self.iter, loss_val_f))
             print("-------------------------------------------")
 
-        if train_loss<self.loss:
-            self.loss = train_loss
+        if val_loss<self.loss:
+            self.loss = val_loss
             torch.save(self.hypernetwork.state_dict(), self.path)
         
         self.iter+=1
             
     def train(self):
-        for _ in range(10001):
+        for _ in range(15001):
             self.loss_func()
             
     def predict(self,X):
@@ -405,7 +378,7 @@ class HyperNetwork(nn.Module):
 
 import glob
 base_net = Base_Net()
-base_net.load_state_dict(torch.load("/kaggle/input/base-kovasznay-models/model_12.pt"))
+base_net.load_state_dict(torch.load("model_12.pt"))   ## Load your base model path
 
 train_Res = []
 train_weights = []
@@ -413,7 +386,7 @@ train_weights = []
 valid_Res = []
 valid_weights = []
 
-for i,file in enumerate(sorted(glob.glob("/kaggle/input/kovasznaydataset/*.pt"))):   ## Load the weights of the pretrained files here
+for i,file in enumerate(sorted(glob.glob("/kovasznaydataset/*.pt"))):   ## Load the weights of the pretrained files here
     
     dnn = LoRA_Net(base_net,1)
     dnn.load_state_dict(torch.load(file))
