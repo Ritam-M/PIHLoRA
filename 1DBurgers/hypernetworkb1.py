@@ -88,7 +88,7 @@ class HyperNetwork(nn.Module):
         self.hypernetwork = Hyper_Model().to(device)  ## Input the number of parameters of PINN
         
         self.base_net = Base_Net().to(device)
-        self.base_net.load_state_dict(torch.load("/kaggle/working/model.pt"))
+        self.base_net.load_state_dict(torch.load("model.pt"))   # Insert base model path
         self.base_weights = torch.cat([param.view(-1) for param in self.base_net.parameters()])
         self.base_weights = self.base_weights.reshape(1,-1)
         
@@ -288,18 +288,7 @@ A = np.meshgrid(x,t)
 X = np.concatenate([A[0].reshape(-1,1),A[1].reshape(-1,1)],axis=1)
 
 for i in range(2,202):
-    
-    """xb_train = x.reshape(-1,1)
-    yb_train = np.array([0.0]*128).reshape(-1,1)
-    x_bc = np.concatenate([xb_train, yb_train], axis=1) 
-    ub_train = np.array(x_data[i]).reshape(-1,1)
-    
-    u_true = y_data[i].reshape(128,101)
-    
-    X_BC.append(x_bc)
-    U_BC.append(ub_train)
-    U_true.append(u_true.reshape(-1,))"""
-    
+
     X_BC.append(X)
     U_BC.append(y_data[i].reshape(-1,1,order='F'))
     U_true.append(y_data[i].reshape(-1,1,order='F'))
