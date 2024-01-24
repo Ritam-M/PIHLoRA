@@ -97,7 +97,7 @@ class HyperNetwork(nn.Module):
         self.mainnetwork = Main_Model_DNN().to(device)
         
         self.optimizer = torch.optim.Adam(self.hypernetwork.parameters(), lr=1e-3)
-        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer,milestones=[5000,10000],gamma=0.1)
+        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer,milestones=[10000,25000,40000],gamma=0.1)
             
         self.loss = 1e10
         self.losses = []
@@ -234,7 +234,7 @@ class HyperNetwork(nn.Module):
         self.iter+=1
             
     def train(self):
-        for _ in range(15001):
+        for _ in range(50001):
             self.loss_func()
             
     def predict(self,X):
@@ -341,8 +341,8 @@ for i in range(2,202):
     
 no1 = 120
 no2 = 40
-train_X_BC, valid_X_BC, test_X_BC = X_BC[:no1], X_BC[no1:no2], X_BC[no2:] 
-train_U_BC, valid_U_BC, test_U_BC = U_BC[:no1], U_BC[no1:no2], U_BC[no2:]
+train_X_BC, valid_X_BC, test_X_BC = X_BC[:no1], X_BC[no1:no1+no2], X_BC[no1+no2:] 
+train_U_BC, valid_U_BC, test_U_BC = U_BC[:no1], U_BC[no1:no1+no2], U_BC[no1+no2:]
 
 A = np.meshgrid(x,t)
 X = np.concatenate([A[0].reshape(-1,1),A[1].reshape(-1,1)],axis=1)
